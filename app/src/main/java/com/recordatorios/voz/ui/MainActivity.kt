@@ -26,6 +26,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -164,6 +165,7 @@ class MainActivity : ComponentActivity() {
         fun processUtterance(
             text: String,
             overrideMillis: Long?,
+            manualRecurrence: String,
             processingSetter: (Boolean) -> Unit,
             onConflict: (ConflictRequest) -> Unit
         ) {
@@ -177,12 +179,14 @@ class MainActivity : ComponentActivity() {
                     if (overrideMillis != null) {
                         title = LocalReminderParser.titleOnly(text)
                         triggerAtMillis = overrideMillis
-                        recurrence = Recurrence.NONE
+                        recurrence = manualRecurrence
                     } else {
                         val parsed = LocalReminderParser.parse(text)
                         title = parsed.title
                         triggerAtMillis = parsed.triggerAtMillis
-                        recurrence = parsed.recurrence
+                        // Si el usuario eligió la recurrencia a mano, esa manda
+                        // sobre lo que se haya detectado en el texto/voz.
+                        recurrence = if (manualRecurrence != Recurrence.NONE) manualRecurrence else parsed.recurrence
                     }
 
                     tryCommit(triggerAtMillis, -1L, onConflict) { millis ->
@@ -207,6 +211,7 @@ class MainActivity : ComponentActivity() {
             var textInput by remember { mutableStateOf("") }
             var manualDate by remember { mutableStateOf<LocalDate?>(null) }
             var manualTime by remember { mutableStateOf<LocalTime?>(null) }
+            var manualRecurrence by remember { mutableStateOf(Recurrence.NONE) }
             var searchQuery by remember { mutableStateOf("") }
             var showClearHistoryConfirm by remember { mutableStateOf(false) }
             var selectedTab by remember { mutableStateOf(0) }
@@ -245,7 +250,7 @@ class MainActivity : ComponentActivity() {
                     ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                     ?.firstOrNull()
                 if (!spokenText.isNullOrBlank()) {
-                    processUtterance(spokenText, null, { processing = it }) { pendingConflict = it }
+                    processUtterance(spokenText, null, manualRecurrence, { processing = it }) { pendingConflict = it }
                 }
             }
 
@@ -308,6 +313,8 @@ class MainActivity : ComponentActivity() {
                         ).show()
                     },
                     onClearManualDateTime = { manualDate = null; manualTime = null },
+                    manualRecurrence = manualRecurrence,
+                    onManualRecurrenceChange = { manualRecurrence = it },
                     searchQuery = searchQuery,
                     onSearchQueryChange = { searchQuery = it },
                     onExport = { exportBackup(allReminders) },
@@ -319,10 +326,11 @@ class MainActivity : ComponentActivity() {
                             val time = manualTime ?: LocalTime.of(9, 0)
                             LocalDateTime.of(date, time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         } else null
-                        processUtterance(textInput, overrideMillis, { processing = it }) { pendingConflict = it }
+                        processUtterance(textInput, overrideMillis, manualRecurrence, { processing = it }) { pendingConflict = it }
                         textInput = ""
                         manualDate = null
                         manualTime = null
+                        manualRecurrence = Recurrence.NONE
                     },
                     needsExactAlarmPermission = needsExactAlarm,
                     needsBatteryExemption = needsBatteryExemption,
@@ -609,6 +617,13 @@ private fun ConflictDialog(
     )
 }
 
+private val createRecurrenceOptions = listOf(
+    Recurrence.NONE to "Ninguna",
+    Recurrence.DAILY to "Diaria",
+    Recurrence.WEEKLY to "Semanal",
+    Recurrence.MONTHLY to "Mensual"
+)
+
 private val PendingBackground = Color(0xFFFCE6D2)
 private val HistoryBackground = Color(0xFFF9D9D9)
 
@@ -628,6 +643,8 @@ fun MainScreen(
     onPickDate: () -> Unit,
     onPickTime: () -> Unit,
     onClearManualDateTime: () -> Unit,
+    manualRecurrence: String,
+    onManualRecurrenceChange: (String) -> Unit,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onExport: () -> Unit,
@@ -784,6 +801,8 @@ fun MainScreen(
                 onPickDate = onPickDate,
                 onPickTime = onPickTime,
                 onClearManualDateTime = onClearManualDateTime,
+                manualRecurrence = manualRecurrence,
+                onManualRecurrenceChange = onManualRecurrenceChange,
                 onSubmitText = onSubmitText,
                 needsExactAlarmPermission = needsExactAlarmPermission,
                 needsBatteryExemption = needsBatteryExemption,
@@ -837,6 +856,8 @@ private fun CreateTab(
     onPickDate: () -> Unit,
     onPickTime: () -> Unit,
     onClearManualDateTime: () -> Unit,
+    manualRecurrence: String,
+    onManualRecurrenceChange: (String) -> Unit,
     onSubmitText: () -> Unit,
     needsExactAlarmPermission: Boolean,
     needsBatteryExemption: Boolean,
@@ -945,6 +966,31 @@ private fun CreateTab(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Repetir", style = MaterialTheme.typography.labelLarge)
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            createRecurrenceOptions.forEach { (value, label) ->
+                FilterChip(
+                    selected = manualRecurrence == value,
+                    onClick = { onManualRecurrenceChange(value) },
+                    label = { Text(label) }
+                )
+            }
+        }
+        if (manualRecurrence != Recurrence.NONE) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "Se repetirá automáticamente desde la fecha/hora que dictes o elijas arriba.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         Spacer(modifier = Modifier.height(100.dp))
     }
 }

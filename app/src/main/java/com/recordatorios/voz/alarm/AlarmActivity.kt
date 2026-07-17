@@ -9,16 +9,12 @@ import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -35,7 +31,6 @@ class AlarmActivity : ComponentActivity() {
     private var tts: TextToSpeech? = null
     private var reminderId: Long = -1
     private var reminderTitle: String = ""
-    private var ttsDebug by mutableStateOf("Iniciando voz…")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,7 +50,6 @@ class AlarmActivity : ComponentActivity() {
             com.recordatorios.voz.ui.RecordatorioVozTheme {
                 AlarmScreen(
                     message = message,
-                    debugInfo = ttsDebug,
                     onSnooze = { minutes -> snooze(minutes) },
                     onDismiss = { dismiss() }
                 )
@@ -91,10 +85,7 @@ class AlarmActivity : ComponentActivity() {
 
     private fun speakMessage(message: String) {
         tts = TextToSpeech(this) { status ->
-            if (status != TextToSpeech.SUCCESS) {
-                ttsDebug = "Motor de voz falló al iniciar (código $status)"
-                return@TextToSpeech
-            }
+            if (status != TextToSpeech.SUCCESS) return@TextToSpeech
 
             val engine = tts ?: return@TextToSpeech
             val candidateLocales = listOf(Locale("es", "ES"), Locale("es"), Locale.getDefault())
@@ -106,7 +97,6 @@ class AlarmActivity : ComponentActivity() {
             if (workingLocale == null) {
                 // Ningún idioma disponible: probablemente falta el paquete de voz.
                 // Ofrecemos instalarlo para que la próxima alarma sí hable.
-                ttsDebug = "Sin datos de voz en español instalados en el motor de TTS"
                 startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
                 return@TextToSpeech
             }
@@ -121,29 +111,11 @@ class AlarmActivity : ComponentActivity() {
                     .build()
             )
 
-            engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {
-                    ttsDebug = "Hablando ahora ($utteranceId)"
-                }
-                override fun onDone(utteranceId: String?) {
-                    ttsDebug = "Terminó de hablar ($utteranceId)"
-                }
-                @Deprecated("Deprecated in Java")
-                override fun onError(utteranceId: String?) {
-                    ttsDebug = "Error al reproducir el habla ($utteranceId)"
-                }
-            })
-
-            ttsDebug = "Voz lista ($workingLocale), esperando para hablar…"
-
             CoroutineScope(Dispatchers.Main).launch {
                 // Deja sonar la alarma un momento antes de hablar.
                 kotlinx.coroutines.delay(1500)
                 repeat(3) {
-                    val result = engine.speak(message, TextToSpeech.QUEUE_ADD, null, "msg_$it")
-                    if (result != TextToSpeech.SUCCESS) {
-                        ttsDebug = "speak() devolvió error ($result)"
-                    }
+                    engine.speak(message, TextToSpeech.QUEUE_ADD, null, "msg_$it")
                 }
             }
         }
@@ -176,7 +148,7 @@ class AlarmActivity : ComponentActivity() {
 }
 
 @Composable
-fun AlarmScreen(message: String, debugInfo: String, onSnooze: (Long) -> Unit, onDismiss: () -> Unit) {
+fun AlarmScreen(message: String, onSnooze: (Long) -> Unit, onDismiss: () -> Unit) {
     val alarmRedBright = com.recordatorios.voz.ui.AppAccentColors.alarmRedBright
     val alarmRedDeep = com.recordatorios.voz.ui.AppAccentColors.alarmRedDeep
 
@@ -207,13 +179,6 @@ fun AlarmScreen(message: String, debugInfo: String, onSnooze: (Long) -> Unit, on
                 text = message,
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "[debug voz] $debugInfo",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.75f),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(48.dp))
