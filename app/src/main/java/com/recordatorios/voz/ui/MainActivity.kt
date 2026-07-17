@@ -26,6 +26,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -201,6 +203,7 @@ class MainActivity : ComponentActivity() {
             var manualTime by remember { mutableStateOf<LocalTime?>(null) }
             var searchQuery by remember { mutableStateOf("") }
             var showClearHistoryConfirm by remember { mutableStateOf(false) }
+            var selectedTab by remember { mutableStateOf(0) }
 
             // Se recalcula cada 30s para que un recordatorio pase solo a
             // "Historial" apenas se cumple su hora, sin reiniciar la app.
@@ -267,6 +270,8 @@ class MainActivity : ComponentActivity() {
 
             RecordatorioVozTheme {
                 MainScreen(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
                     status = status,
                     processing = processing,
                     activeReminders = activeReminders,
@@ -516,9 +521,14 @@ private fun ConflictDialog(
     )
 }
 
+private val PendingBackground = Color(0xFFFCE6D2)
+private val HistoryBackground = Color(0xFFF9D9D9)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
     status: String,
     processing: Boolean,
     activeReminders: List<Reminder>,
@@ -543,6 +553,12 @@ fun MainScreen(
     onFixExactAlarmPermission: () -> Unit,
     onReminderClick: (Reminder) -> Unit
 ) {
+    val tabTitle = when (selectedTab) {
+        1 -> "Pendientes"
+        2 -> "Historial"
+        else -> "MiAgenda"
+    }
+
     Scaffold(
         topBar = {
             Box(
@@ -578,7 +594,7 @@ fun MainScreen(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            "MiAgenda",
+                            tabTitle,
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 19.sp
@@ -594,289 +610,370 @@ fun MainScreen(
                 }
             }
         },
-        floatingActionButton = {
-            val infiniteTransition = rememberInfiniteTransition(label = "fabPulse")
-            val pulseScale by infiniteTransition.animateFloat(
-                initialValue = 0.85f,
-                targetValue = 1.35f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(2400, easing = LinearOutSlowInEasing)
-                ),
-                label = "pulseScale"
-            )
-            val pulseAlpha by infiniteTransition.animateFloat(
-                initialValue = 0.55f,
-                targetValue = 0f,
-                animationSpec = infiniteRepeatable(animation = tween(2400)),
-                label = "pulseAlpha"
-            )
-
-            Box(modifier = Modifier.size(88.dp), contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .scale(pulseScale)
-                        .clip(CircleShape)
-                        .border(2.dp, AppAccentColors.amber.copy(alpha = pulseAlpha), CircleShape)
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { onTabSelected(0) },
+                    icon = { Icon(Icons.Filled.Mic, contentDescription = null) },
+                    label = { Text("Crear") }
                 )
-                FloatingActionButton(
-                    onClick = onMicClick,
-                    containerColor = MaterialTheme.colorScheme.tertiary,
-                    contentColor = Color.White,
-                    modifier = Modifier.size(64.dp),
-                    shape = CircleShape
-                ) {
-                    if (processing) {
-                        CircularProgressIndicator(color = Color.White)
-                    } else {
-                        Icon(Icons.Filled.Mic, contentDescription = "Dictar recordatorio", modifier = Modifier.size(28.dp))
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { onTabSelected(1) },
+                    icon = { Icon(Icons.Filled.Alarm, contentDescription = null) },
+                    label = { Text("Pendientes") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { onTabSelected(2) },
+                    icon = { Icon(Icons.Filled.History, contentDescription = null) },
+                    label = { Text("Historial") }
+                )
+            }
+        },
+        floatingActionButton = {
+            if (selectedTab == 0) {
+                val infiniteTransition = rememberInfiniteTransition(label = "fabPulse")
+                val pulseScale by infiniteTransition.animateFloat(
+                    initialValue = 0.85f,
+                    targetValue = 1.35f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(2400, easing = LinearOutSlowInEasing)
+                    ),
+                    label = "pulseScale"
+                )
+                val pulseAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.55f,
+                    targetValue = 0f,
+                    animationSpec = infiniteRepeatable(animation = tween(2400)),
+                    label = "pulseAlpha"
+                )
+
+                Box(modifier = Modifier.size(88.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .scale(pulseScale)
+                            .clip(CircleShape)
+                            .border(2.dp, AppAccentColors.amber.copy(alpha = pulseAlpha), CircleShape)
+                    )
+                    FloatingActionButton(
+                        onClick = onMicClick,
+                        containerColor = MaterialTheme.colorScheme.tertiary,
+                        contentColor = Color.White,
+                        modifier = Modifier.size(64.dp),
+                        shape = CircleShape
+                    ) {
+                        if (processing) {
+                            CircularProgressIndicator(color = Color.White)
+                        } else {
+                            Icon(Icons.Filled.Mic, contentDescription = "Dictar recordatorio", modifier = Modifier.size(28.dp))
+                        }
                     }
                 }
             }
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 20.dp)
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (needsExactAlarmPermission) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "Falta activar permiso de alarmas exactas para que suenen a la hora precisa.",
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = onFixExactAlarmPermission) { Text("Activar permiso") }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            if (needsBatteryExemption) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "El ahorro de batería puede retrasar o cancelar las alarmas. Desactívalo para esta app.",
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = onFixBatteryExemption) { Text("Ignorar optimización de batería") }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            var showOfflineVoiceTip by remember { mutableStateOf(true) }
-            if (showOfflineVoiceTip) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "Para dictar sin internet, descarga el paquete de voz en español.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = { showOfflineVoiceTip = false },
-                                modifier = Modifier.size(20.dp)
-                            ) {
-                                Icon(Icons.Filled.Close, contentDescription = "Cerrar aviso")
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedButton(onClick = onOpenOfflineVoiceSettings) {
-                            Text("Configurar voz sin conexión")
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    status,
-                    modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = textInput,
-                    onValueChange = onTextInputChange,
-                    placeholder = { Text("Escribe tu recordatorio...") },
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-                FilledIconButton(
-                    onClick = onSubmitText,
-                    enabled = textInput.isNotBlank(),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(Icons.Filled.Send, contentDescription = "Agregar recordatorio")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(onClick = onPickDate) {
-                    Text(manualDate?.format(dateButtonFormatter) ?: "Elegir fecha")
-                }
-                OutlinedButton(onClick = onPickTime) {
-                    Text(manualTime?.format(timeButtonFormatter) ?: "Elegir hora")
-                }
-                if (manualDate != null || manualTime != null) {
-                    TextButton(onClick = onClearManualDateTime) {
-                        Text("Quitar")
-                    }
-                }
-            }
-            Text(
-                "Si eliges fecha/hora aquí, escribe solo el título arriba (sin fecha/hora en el texto).",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        when (selectedTab) {
+            0 -> CreateTab(
+                modifier = Modifier.padding(padding),
+                status = status,
+                textInput = textInput,
+                onTextInputChange = onTextInputChange,
+                manualDate = manualDate,
+                manualTime = manualTime,
+                onPickDate = onPickDate,
+                onPickTime = onPickTime,
+                onClearManualDateTime = onClearManualDateTime,
+                onSubmitText = onSubmitText,
+                needsExactAlarmPermission = needsExactAlarmPermission,
+                needsBatteryExemption = needsBatteryExemption,
+                onFixBatteryExemption = onFixBatteryExemption,
+                onFixExactAlarmPermission = onFixExactAlarmPermission,
+                onOpenOfflineVoiceSettings = onOpenOfflineVoiceSettings
             )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                placeholder = { Text("Buscar recordatorios...") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Limpiar búsqueda")
-                        }
+            1 -> RemindersListTab(
+                modifier = Modifier.padding(padding),
+                background = PendingBackground,
+                title = "Pendientes",
+                emptyMessage = "No tienes recordatorios pendientes.\nCreálos desde la pestaña \"Crear\".",
+                reminders = activeReminders,
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                headerAction = null,
+                cardContent = { reminder -> ReminderCard(reminder = reminder, onClick = { onReminderClick(reminder) }) }
+            )
+            else -> RemindersListTab(
+                modifier = Modifier.padding(padding),
+                background = HistoryBackground,
+                title = "Historial",
+                emptyMessage = "Todavía no hay recordatorios vencidos.",
+                reminders = historyReminders,
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                headerAction = {
+                    TextButton(onClick = onClearHistory) {
+                        Icon(
+                            Icons.Filled.DeleteSweep,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Vaciar todo")
                     }
                 },
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                cardContent = { reminder -> HistoryCard(reminder = reminder, onClick = { onReminderClick(reminder) }) }
             )
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                "Próximos recordatorios",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+@Composable
+private fun CreateTab(
+    modifier: Modifier,
+    status: String,
+    textInput: String,
+    onTextInputChange: (String) -> Unit,
+    manualDate: LocalDate?,
+    manualTime: LocalTime?,
+    onPickDate: () -> Unit,
+    onPickTime: () -> Unit,
+    onClearManualDateTime: () -> Unit,
+    onSubmitText: () -> Unit,
+    needsExactAlarmPermission: Boolean,
+    needsBatteryExemption: Boolean,
+    onFixBatteryExemption: () -> Unit,
+    onFixExactAlarmPermission: () -> Unit,
+    onOpenOfflineVoiceSettings: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
 
-            if (activeReminders.isEmpty() && historyReminders.isEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 48.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Filled.Alarm,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+        if (needsExactAlarmPermission) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Falta activar permiso de alarmas exactas para que suenen a la hora precisa.",
+                        color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Todavía no tienes recordatorios.\nDicta con el micrófono o escribe arriba.",
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Button(onClick = onFixExactAlarmPermission) { Text("Activar permiso") }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 140.dp)
-                ) {
-                    if (activeReminders.isEmpty()) {
-                        item {
-                            Text(
-                                "No tienes recordatorios próximos.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-                        }
-                    }
-                    items(activeReminders) { reminder ->
-                        ReminderCard(reminder = reminder, onClick = { onReminderClick(reminder) })
-                    }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
-                    if (historyReminders.isNotEmpty()) {
-                        item {
-                            Spacer(modifier = Modifier.height(20.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Filled.History,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        "Historial",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                TextButton(onClick = onClearHistory) {
-                                    Icon(
-                                        Icons.Filled.DeleteSweep,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Vaciar")
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                        items(historyReminders) { reminder ->
-                            HistoryCard(reminder = reminder, onClick = { onReminderClick(reminder) })
+        if (needsBatteryExemption) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "El ahorro de batería puede retrasar o cancelar las alarmas. Desactívalo para esta app.",
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(onClick = onFixBatteryExemption) { Text("Ignorar optimización de batería") }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        var showOfflineVoiceTip by remember { mutableStateOf(true) }
+        if (showOfflineVoiceTip) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Para dictar sin internet, descarga el paquete de voz en español.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { showOfflineVoiceTip = false },
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(Icons.Filled.Close, contentDescription = "Cerrar aviso")
                         }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(onClick = onOpenOfflineVoiceSettings) {
+                        Text("Configurar voz sin conexión")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                status,
+                modifier = Modifier.padding(16.dp),
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = textInput,
+                onValueChange = onTextInputChange,
+                placeholder = { Text("Escribe tu recordatorio...") },
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            FilledIconButton(
+                onClick = onSubmitText,
+                enabled = textInput.isNotBlank(),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(Icons.Filled.Send, contentDescription = "Agregar recordatorio")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(onClick = onPickDate) {
+                Text(manualDate?.format(dateButtonFormatter) ?: "Elegir fecha")
+            }
+            OutlinedButton(onClick = onPickTime) {
+                Text(manualTime?.format(timeButtonFormatter) ?: "Elegir hora")
+            }
+            if (manualDate != null || manualTime != null) {
+                TextButton(onClick = onClearManualDateTime) {
+                    Text("Quitar")
+                }
+            }
+        }
+        Text(
+            "Si eliges fecha/hora aquí, escribe solo el título arriba (sin fecha/hora en el texto).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(100.dp))
+    }
+}
+
+@Composable
+private fun RemindersListTab(
+    modifier: Modifier,
+    background: Color,
+    title: String,
+    emptyMessage: String,
+    reminders: List<Reminder>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    headerAction: (@Composable () -> Unit)?,
+    cardContent: @Composable (Reminder) -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(background)
+            .padding(horizontal = 20.dp)
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            headerAction?.invoke()
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            placeholder = { Text("Buscar recordatorios...") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { onSearchQueryChange("") }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Limpiar búsqueda")
+                    }
+                }
+            },
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedContainerColor = MaterialTheme.colorScheme.surface
+            )
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (reminders.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    Icons.Filled.Alarm,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    emptyMessage,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                items(reminders) { reminder ->
+                    cardContent(reminder)
                 }
             }
         }
