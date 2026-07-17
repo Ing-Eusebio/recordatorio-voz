@@ -403,7 +403,7 @@ class MainActivity : ComponentActivity() {
 
     private fun exportReminders(reminders: List<Reminder>) {
         val summary = buildString {
-            appendLine("Recordatorios — Recordatorio Voz")
+            appendLine("Recordatorios — MiAgenda")
             appendLine()
             reminders.sortedBy { it.triggerAtMillis }.forEach { reminder ->
                 append("• ${reminder.title} — ${formatDate(reminder.triggerAtMillis)}")
@@ -578,7 +578,7 @@ fun MainScreen(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            "Recordatorio Voz",
+                            "MiAgenda",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 19.sp

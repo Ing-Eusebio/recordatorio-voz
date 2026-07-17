@@ -1,4 +1,4 @@
-# Recordatorio Voz (Android)
+# MiAgenda (Android)
 
 App nativa Android (Kotlin + Jetpack Compose) que:
 1. Captura tu voz con el reconocimiento de voz del sistema.
@@ -63,7 +63,7 @@ primera vez que uses la app:
 - **Alarmas exactas**: la app te lleva directo a la pantalla de ajustes si
   falta (botón en la UI principal). En Android 12+ es obligatorio para que
   las alarmas suenen a la hora exacta.
-- **Optimización de batería**: en Ajustes → Apps → Recordatorio Voz →
+- **Optimización de batería**: en Ajustes → Apps → MiAgenda →
   Batería → "Sin restricciones". Si no, el sistema puede matar la app y
   retrasar/perder alarmas.
 - **Notificaciones**: se pide en tiempo de ejecución (Android 13+), pero si
