@@ -618,10 +618,11 @@ private fun ConflictDialog(
 }
 
 private val createRecurrenceOptions = listOf(
-    Recurrence.NONE to "Ninguna",
-    Recurrence.DAILY to "Diaria",
-    Recurrence.WEEKLY to "Semanal",
-    Recurrence.MONTHLY to "Mensual"
+    Recurrence.NONE to "No se repite",
+    Recurrence.DAILY to "Cada día",
+    Recurrence.WEEKLY to "Cada semana",
+    Recurrence.MONTHLY to "Cada mes (mismo número)",
+    Recurrence.MONTHLY_BY_WEEKDAY to "Cada mes (mismo día de semana)"
 )
 
 private val PendingBackground = Color(0xFFFCE6D2)
@@ -661,6 +662,7 @@ fun MainScreen(
     val tabTitle = when (selectedTab) {
         1 -> "Pendientes"
         2 -> "Historial"
+        3 -> "Backup"
         else -> "MiAgenda"
     }
 
@@ -705,22 +707,6 @@ fun MainScreen(
                             fontSize = 19.sp
                         )
                     }
-                    Row {
-                        IconButton(onClick = onImport) {
-                            Icon(
-                                Icons.Filled.Restore,
-                                contentDescription = "Restaurar backup",
-                                tint = Color.White
-                            )
-                        }
-                        IconButton(onClick = onExport) {
-                            Icon(
-                                Icons.Filled.Share,
-                                contentDescription = "Exportar backup",
-                                tint = Color.White
-                            )
-                        }
-                    }
                 }
             }
         },
@@ -743,6 +729,12 @@ fun MainScreen(
                     onClick = { onTabSelected(2) },
                     icon = { Icon(Icons.Filled.History, contentDescription = null) },
                     label = { Text("Historial") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { onTabSelected(3) },
+                    icon = { Icon(Icons.Filled.Restore, contentDescription = null) },
+                    label = { Text("Backup") }
                 )
             }
         },
@@ -820,7 +812,7 @@ fun MainScreen(
                 headerAction = null,
                 cardContent = { reminder -> ReminderCard(reminder = reminder, onClick = { onReminderClick(reminder) }) }
             )
-            else -> RemindersListTab(
+            2 -> RemindersListTab(
                 modifier = Modifier.padding(padding),
                 background = HistoryBackground,
                 title = "Historial",
@@ -840,6 +832,11 @@ fun MainScreen(
                     }
                 },
                 cardContent = { reminder -> HistoryCard(reminder = reminder, onClick = { onReminderClick(reminder) }) }
+            )
+            else -> BackupTab(
+                modifier = Modifier.padding(padding),
+                onExport = onExport,
+                onImport = onImport
             )
         }
     }
@@ -968,8 +965,14 @@ private fun CreateTab(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Repetir", style = MaterialTheme.typography.labelLarge)
+        Text("¿Se repite este recordatorio?", style = MaterialTheme.typography.labelLarge)
         Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            "Toca una opción. La primera vez sonará en la fecha/hora que pongas arriba, y después se repetirá solo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -982,16 +985,118 @@ private fun CreateTab(
                 )
             }
         }
-        if (manualRecurrence != Recurrence.NONE) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                "Se repetirá automáticamente desde la fecha/hora que dictes o elijas arriba.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            recurrenceExplanation(manualRecurrence),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
 
         Spacer(modifier = Modifier.height(100.dp))
+    }
+}
+
+private fun recurrenceExplanation(recurrence: String): String = when (recurrence) {
+    Recurrence.DAILY -> "Ejemplo: si lo pones para hoy a las 8:00 am, sonará TODOS los días a las 8:00 am."
+    Recurrence.WEEKLY -> "Ejemplo: si lo pones para este viernes a las 5:00 pm, sonará TODOS los viernes a las 5:00 pm."
+    Recurrence.MONTHLY -> "Ejemplo: si lo pones para el día 15, sonará el día 15 de CADA mes a la misma hora."
+    Recurrence.MONTHLY_BY_WEEKDAY -> "Ejemplo: si lo pones para el primer viernes de este mes, sonará el PRIMER VIERNES de cada mes (aunque caiga en otro número de día)."
+    else -> "Sonará una sola vez, en la fecha y hora que indiques."
+}
+
+@Composable
+private fun BackupTab(
+    modifier: Modifier,
+    onExport: () -> Unit,
+    onImport: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+    ) {
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            "Copia de seguridad",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            "Guarda tus recordatorios en un archivo para no perderlos si cambias de teléfono o borras la app.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = MaterialTheme.shapes.medium,
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Share,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("1. Hacer backup", style = MaterialTheme.typography.titleMedium)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Crea un archivo con TODOS tus recordatorios y te deja enviarlo por WhatsApp, correo, Drive, o guardarlo donde quieras. Hazlo de vez en cuando, como quien guarda una foto importante.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = onExport,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    Text("Hacer backup ahora")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = MaterialTheme.shapes.medium,
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Restore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("2. Restaurar backup", style = MaterialTheme.typography.titleMedium)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "¿Ya tienes un archivo de backup guardado? Tócalo aquí, elige el archivo, y tus recordatorios vuelven a aparecer con sus alarmas funcionando. No borra los que ya tengas: solo agrega los del archivo.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                OutlinedButton(
+                    onClick = onImport,
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) {
+                    Text("Restaurar desde un archivo")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -1169,6 +1274,7 @@ private fun recurrenceLabel(recurrence: String): String = when (recurrence) {
     Recurrence.DAILY -> "cada día"
     Recurrence.WEEKLY -> "cada semana"
     Recurrence.MONTHLY -> "cada mes"
+    Recurrence.MONTHLY_BY_WEEKDAY -> "cada mes (mismo día de semana)"
     else -> ""
 }
 

@@ -17,10 +17,11 @@ import java.util.Calendar
 import java.util.Locale
 
 private val recurrenceOptions = listOf(
-    Recurrence.NONE to "Ninguna",
-    Recurrence.DAILY to "Diaria",
-    Recurrence.WEEKLY to "Semanal",
-    Recurrence.MONTHLY to "Mensual"
+    Recurrence.NONE to "No se repite",
+    Recurrence.DAILY to "Cada día",
+    Recurrence.WEEKLY to "Cada semana",
+    Recurrence.MONTHLY to "Cada mes (mismo número)",
+    Recurrence.MONTHLY_BY_WEEKDAY to "Cada mes (mismo día de semana)"
 )
 
 @Composable

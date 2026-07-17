@@ -11,8 +11,10 @@ import com.recordatorios.voz.data.Reminder
  * Programa dos alarmas exactas por recordatorio:
  *  - una de "aviso" 15 minutos antes
  *  - una a la hora exacta del evento
- * Ambas usan AlarmManager.setExactAndAllowWhileIdle para dispararse incluso
- * en Doze / con la app cerrada.
+ * Ambas usan AlarmManager.setAlarmClock: es el único modo que el sistema
+ * trata como una alarma de reloj real y NO puede diferir por ahorro de
+ * batería/Doze (setExactAndAllowWhileIdle admite retrasos de minutos, que
+ * es lo que causaba que sonara 2-3 minutos tarde en Huawei).
  */
 object AlarmScheduler {
 
@@ -94,7 +96,18 @@ object AlarmScheduler {
             alarmManager.canScheduleExactAlarms()
 
         if (canScheduleExact) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            // El "showIntent" es lo que se abre si el usuario toca el icono de
+            // alarma en la barra de estado; lo mandamos a la app principal.
+            val showIntent = PendingIntent.getActivity(
+                context,
+                requestCode,
+                Intent(context, com.recordatorios.voz.ui.MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent),
+                pendingIntent
+            )
         } else {
             alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
         }

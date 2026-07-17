@@ -67,6 +67,20 @@ object LocalReminderParser {
     )
     private val strayMeridiemRegex = Regex("""(?i)\b(a\.?\s?m\.?|p\.?\s?m\.?)\b""")
 
+    // "el primer viernes de cada mes", "cada segundo lunes del mes",
+    // "todos los primeros viernes de cada mes"...
+    private val monthlyByWeekdayRegex = Regex(
+        """(?:el|cada|todos los) (primer(?:o|os)?|segundos?|tercer(?:o|os)?|cuartos?|[uú]ltimos?) (lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bados?|domingos?) (?:de(?:l)? (?:cada )?mes|de cada mes|del mes)"""
+    )
+
+    private val ordinalWords = mapOf(
+        "primer" to 1, "primero" to 1, "primeros" to 1,
+        "segundo" to 2, "segundos" to 2,
+        "tercer" to 3, "tercero" to 3, "terceros" to 3,
+        "cuarto" to 4, "cuartos" to 4,
+        "ultimo" to 5, "ultimos" to 5
+    )
+
     private val weeklyWithDayRegex = Regex(
         """(?:todos los|cada) (lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bados?|domingos?)"""
     )
@@ -97,10 +111,32 @@ object LocalReminderParser {
         var recurrence = Recurrence.NONE
         var recurrenceMatchRange: IntRange? = null
 
+        // "El primer viernes de cada mes" se revisa antes que el resto porque
+        // su frase contiene también un día de semana suelto que confundiría a
+        // los patrones más genéricos.
+        val monthlyByWeekdayMatch = monthlyByWeekdayRegex.find(lower)
+        if (monthlyByWeekdayMatch != null) {
+            val ordinalWord = monthlyByWeekdayMatch.groupValues[1]
+                .replace("ú", "u")
+            val dayWord = monthlyByWeekdayMatch.groupValues[2]
+            val ordinal = ordinalWords[ordinalWord] ?: ordinalWords[ordinalWord.removeSuffix("s")] ?: 1
+            val dow = weekdays[dayWord] ?: weekdays[dayWord.removeSuffix("s")]
+            if (dow != null) {
+                // Ocurrencia de este mes; si ya pasó, la del mes siguiente.
+                targetDate = nthWeekdayOfMonth(now.toLocalDate().withDayOfMonth(1), dow, ordinal)
+                if (targetDate.isBefore(now.toLocalDate())) {
+                    targetDate = nthWeekdayOfMonth(now.toLocalDate().plusMonths(1).withDayOfMonth(1), dow, ordinal)
+                }
+                dateMatchRange = monthlyByWeekdayMatch.range
+                recurrence = Recurrence.MONTHLY_BY_WEEKDAY
+                recurrenceMatchRange = monthlyByWeekdayMatch.range
+            }
+        }
+
         // Se revisa primero "todos los lunes"/"cada lunes" para que el día de
         // la semana y la recurrencia se limpien del título como un solo
         // fragmento (evita rangos superpuestos con la detección genérica).
-        val weeklyDayMatch = weeklyWithDayRegex.find(lower)
+        val weeklyDayMatch = if (recurrence == Recurrence.NONE) weeklyWithDayRegex.find(lower) else null
         if (weeklyDayMatch != null) {
             val rawWord = weeklyDayMatch.groupValues[1]
             // Solo sábado/domingo tienen forma plural opcional en el patrón
@@ -190,6 +226,19 @@ object LocalReminderParser {
 
         val title = cleanTitle(spokenText, dateMatchRange, timeMatchRange, recurrenceMatchRange)
         return ParsedReminder(title, toMillis(target), recurrence)
+    }
+
+    /**
+     * Devuelve el N-ésimo día de semana del mes de `monthStart` (ej: el 2.º
+     * viernes). `ordinal` 5 significa "último": si el mes no tiene quinta
+     * ocurrencia, cae en la cuarta.
+     */
+    private fun nthWeekdayOfMonth(monthStart: LocalDate, weekday: DayOfWeek, ordinal: Int): LocalDate {
+        var candidate = monthStart.withDayOfMonth(1)
+        while (candidate.dayOfWeek != weekday) candidate = candidate.plusDays(1)
+        candidate = candidate.plusWeeks((ordinal - 1).toLong())
+        if (candidate.month != monthStart.month) candidate = candidate.minusWeeks(1)
+        return candidate
     }
 
     private fun nextOrSameWeekday(from: LocalDate, target: DayOfWeek): LocalDate {

@@ -95,6 +95,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     Recurrence.DAILY -> current.plusDays(1)
                     Recurrence.WEEKLY -> current.plusWeeks(1)
                     Recurrence.MONTHLY -> current.plusMonths(1)
+                    Recurrence.MONTHLY_BY_WEEKDAY -> nextMonthlySameWeekday(current)
                     else -> current
                 }
                 val nextMillis = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -106,6 +107,26 @@ class AlarmReceiver : BroadcastReceiver() {
                 pendingResult.finish()
             }
         }
+    }
+
+    /**
+     * Calcula la misma posición de día de semana en el mes siguiente:
+     * p. ej. si `current` es el primer viernes de julio, devuelve el primer
+     * viernes de agosto. Si el mes siguiente no tiene una 5.ª ocurrencia,
+     * usa la última disponible.
+     */
+    private fun nextMonthlySameWeekday(current: java.time.LocalDateTime): java.time.LocalDateTime {
+        val weekday = current.dayOfWeek
+        val ordinal = (current.dayOfMonth - 1) / 7 + 1
+
+        val nextMonth = current.toLocalDate().plusMonths(1).withDayOfMonth(1)
+        var candidate = nextMonth
+        while (candidate.dayOfWeek != weekday) candidate = candidate.plusDays(1)
+        candidate = candidate.plusWeeks((ordinal - 1).toLong())
+        if (candidate.month != nextMonth.month) {
+            candidate = candidate.minusWeeks(1)
+        }
+        return candidate.atTime(current.toLocalTime())
     }
 
     private fun createChannel(context: Context) {

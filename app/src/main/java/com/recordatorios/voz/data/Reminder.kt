@@ -8,6 +8,11 @@ object Recurrence {
     const val DAILY = "DAILY"
     const val WEEKLY = "WEEKLY"
     const val MONTHLY = "MONTHLY"
+
+    // Repite el mismo día de semana en la misma posición del mes: si el
+    // recordatorio cae el primer viernes, el próximo será el primer viernes
+    // del mes siguiente (no el mismo número de día).
+    const val MONTHLY_BY_WEEKDAY = "MONTHLY_BY_WEEKDAY"
 }
 
 @Entity(tableName = "reminders")
