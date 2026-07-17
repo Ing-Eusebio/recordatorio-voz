@@ -820,8 +820,11 @@ fun MainScreen(
                 }
             } else {
                 LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 96.dp)
+                    contentPadding = PaddingValues(bottom = 140.dp)
                 ) {
                     if (activeReminders.isEmpty()) {
                         item {
